@@ -145,7 +145,7 @@ fn extract_types(fields: &Punctuated<Field, syn::token::Comma>) -> Vec<&syn::Pat
 /// Otherwise, returns the default.
 fn get_field_header_name(field: &Field, default: &syn::Ident) -> String {
     for attr in &field.attrs {
-        let segs = &attr.path.segments;
+        let segs = &attr.path().segments;
 
         for seg in segs {
             let attrname = seg.ident.to_string();
@@ -163,19 +163,17 @@ fn get_field_header_name(field: &Field, default: &syn::Ident) -> String {
 /// 
 /// If any problems during parsing occur, the function panics.
 fn parse_header_name_param(attr: &syn::Attribute) -> String {
-    let t : Vec<proc_macro2::TokenTree> = attr.tts.clone().into_iter().collect();
+	let syn::Meta::List(ref meta) = attr.meta else {
+		unimplemented!()
+	};
 
-    let stream = if let proc_macro2::TokenTree::Group(x) = &t[0] {
-        x.stream()
-    } else {
-        unimplemented!()
-    };
+    let mut stream = meta.tokens.clone().into_iter();
 
     let generic_error = "Only the following header attribute is currently valid: #[header(name = \"<str>\")]. This may change in the future, however.";
 
     // The first part needs to be an identifier called "name"
     // It specifies the name of the header.
-    if let proc_macro2::TokenTree::Ident(i) = &stream.clone().into_iter().collect::<Vec<proc_macro2::TokenTree>>()[0]{
+    if let Some(proc_macro2::TokenTree::Ident(i)) = stream.next() {
         if i.to_string() != "name" {
             panic!("Found '{}' instead of 'name' for #[header(name = <string>)]", i);
         }
@@ -185,7 +183,7 @@ fn parse_header_name_param(attr: &syn::Attribute) -> String {
     }
 
     // The second part needs to be a '=' symbol.
-    if let proc_macro2::TokenTree::Punct(i) = &stream.clone().into_iter().collect::<Vec<proc_macro2::TokenTree>>()[1]{
+    if let Some(proc_macro2::TokenTree::Punct(i)) = stream.next() {
         if i.to_string() != "=" {
             panic!("Found '{}' instead of 'name' for #[header(name = <string>)]", i);
         }
@@ -195,7 +193,7 @@ fn parse_header_name_param(attr: &syn::Attribute) -> String {
     }
 
     // If the past two parts were valid, and this part is a string literal, then it is valid.
-    if let proc_macro2::TokenTree::Literal(i) = &stream.clone().into_iter().collect::<Vec<proc_macro2::TokenTree>>()[2]{
+    if let Some(proc_macro2::TokenTree::Literal(i)) = stream.next() {
         let s = i.to_string();
 
         if s.starts_with("\"") && s.ends_with("\"") {
